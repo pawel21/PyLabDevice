@@ -11,9 +11,10 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import logging
 import numpy as np
+import shutil
 import time
 import thread
-import shutil
+import os
 
 from Device import Device
 
@@ -22,7 +23,8 @@ class BaseMeasureInfo:
     _DEFAULT_FMT = "%(asctime)s - %(levelname)s - %(message)s"
     logger = logging.getLogger(__name__)
     OUT_MSG = ""
-    CURRENT_WAVELENGTH = ""
+    WAVELENGTH = ""
+    LD_CURRENT_LIMIT = ""
 
     def __init__(self):
         logging.basicConfig(
@@ -38,7 +40,8 @@ class MeasureDeviceConnect(BaseMeasureInfo):
         ldc = dev.get_ldc4005_instance()
         pm100 = dev.get_pm100_instance()
         BaseMeasureInfo.OUT_MSG += "Connections with device successful"
-        BaseMeasureInfo.CURRENT_WAVELENGTH = str(pm100.get_current_wavelength_in_nm())
+        BaseMeasureInfo.WAVELENGTH = str(pm100.get_current_wavelength_in_nm())
+        BaseMeasureInfo.LD_CURRENT_LIMIT = str(ldc.get_current_limit_in_amper()*1000)
     except Exception as err:
         BaseMeasureInfo.logger.error(err)
         BaseMeasureInfo.OUT_MSG += ("Error %s" % err)
@@ -49,7 +52,7 @@ class Measure:
     @staticmethod
     def do_measure(start_current, stop_current, numbers_of_points):
         try:
-            MeasureDeviceConnect.ldc.ld_current_in_A_setpoint(0)
+            MeasureDeviceConnect.ldc.set_ld_current_in_amper(0)
             time.sleep(1)
             MeasureDeviceConnect.ldc.on()
             time.sleep(3)
@@ -60,7 +63,7 @@ class Measure:
             set_current_array = np.linspace(start_current, stop_current, numbers_of_points)
 
             for i in range(0, len(set_current_array)):
-                MeasureDeviceConnect.ldc.ld_current_in_A_setpoint(str(set_current_array[i]))
+                MeasureDeviceConnect.ldc.set_ld_current_in_amper(str(set_current_array[i]))
                 current.append(MeasureDeviceConnect.ldc.ld_current_reading())
                 voltage.append(MeasureDeviceConnect.ldc.ld_voltage_reading())
                 power.append(MeasureDeviceConnect.pm100.get_power())
@@ -99,15 +102,6 @@ class App(QMainWindow, MeasureDeviceConnect):
         self.matplotlib_toolbar.move(300, 0)
         self.matplotlib_toolbar.resize(500, 50)
 
-        buton_to_save_data = QPushButton("Save data", self)
-        buton_to_save_data.clicked.connect(self.save_data)
-        buton_to_save_data.move(1020, 100)
-        buton_to_save_data.resize(140, 50)
-
-        label_with_current_wavelength = QLabel('Current wavelength: ' + str(self.CURRENT_WAVELENGTH ) + " nm", self)
-        label_with_current_wavelength.move(1020, 150)
-        label_with_current_wavelength.resize(200, 80)
-
         button_to_start_measure = QPushButton('Start', self)
         button_to_start_measure.move(1020, 10)
         button_to_start_measure.resize(140, 50)
@@ -117,6 +111,33 @@ class App(QMainWindow, MeasureDeviceConnect):
         button_to_stop_measure.move(1180, 10)
         button_to_stop_measure.resize(140, 50)
         button_to_stop_measure.clicked.connect(self.click_to_stop_measure)
+
+        buton_to_save_data = QPushButton("Save data", self)
+        buton_to_save_data.clicked.connect(self.save_data)
+        buton_to_save_data.move(1020, 100)
+        buton_to_save_data.resize(140, 50)
+
+        self.label_with_current_wavelength = QLabel('Current wavelength: ' + str(self.WAVELENGTH) + " nm", self)
+        self.label_with_current_wavelength.move(1020, 180)
+        self.label_with_current_wavelength.resize(200, 80)
+        button_to_set_wavelength = QPushButton('Set wavelength [nm]', self)
+        button_to_set_wavelength.move(1020, 250)
+        button_to_set_wavelength.resize(150, 30)
+        button_to_set_wavelength.clicked.connect(self.set_wavelength)
+        self.line_to_set_wavelength = QLineEdit(self)
+        self.line_to_set_wavelength.setText(str(self.WAVELENGTH))
+        self.line_to_set_wavelength.move(1180, 250)
+
+        self.label_with_ld_current_limit = QLabel('LD current limit: ' + str(self.LD_CURRENT_LIMIT) + " mA", self)
+        self.label_with_ld_current_limit.move(1020, 280)
+        self.label_with_ld_current_limit.resize(200, 80)
+        button_to_set_ld_current_limit = QPushButton('Set LD current limit', self)
+        button_to_set_ld_current_limit.move(1020, 350)
+        button_to_set_ld_current_limit.resize(150, 30)
+        button_to_set_ld_current_limit.clicked.connect(self.set_ld_current_limit)
+        self.line_to_set_ld_current_limit = QLineEdit(self)
+        self.line_to_set_ld_current_limit.setText(str(self.LD_CURRENT_LIMIT))
+        self.line_to_set_ld_current_limit.move(1180, 350)
 
         button_to_set_start_current = QPushButton('Set start current [mA]', self)
         button_to_set_start_current.move(30, 650)
@@ -134,7 +155,7 @@ class App(QMainWindow, MeasureDeviceConnect):
         self.line_to_enter_stop_current.setText("0")
         self.line_to_enter_stop_current.move(200, 700)
 
-        button_to_set_numer_of_points_to_measure = QPushButton('Set numer of points to measure', self)
+        button_to_set_numer_of_points_to_measure = QPushButton('Set numbers of points to measure', self)
         button_to_set_numer_of_points_to_measure.move(350, 650)
         button_to_set_numer_of_points_to_measure.resize(220, 30)
         button_to_set_numer_of_points_to_measure.clicked.connect(self.set_points_to_measure)
@@ -167,6 +188,24 @@ class App(QMainWindow, MeasureDeviceConnect):
     def click_to_stop_measure(self):
         MeasureDeviceConnect.ldc.off()
 
+    def save_data(self):
+        file_name_to_save = QFileDialog.getSaveFileName(self, "Open file",
+                                                        "", "Image files (*.txt )")
+        current_working_directory = os.getcwd()
+        shutil.copy(os.path.join(current_working_directory, "data.txt"), str(file_name_to_save[0]))
+
+    def set_wavelength(self):
+        self.WAVELENGTH = self.line_to_set_wavelength.text()
+        MeasureDeviceConnect.pm100.set_wavelength_in_nm(self.WAVELENGTH)
+        self.WAVELENGTH = MeasureDeviceConnect.pm100.get_current_wavelength_in_nm()
+        self.label_with_current_wavelength.setText("Current wavelength: " + str(self.WAVELENGTH) + " nm")
+
+    def set_ld_current_limit(self):
+        self.LD_CURRENT_LIMIT = self.line_to_set_ld_current_limit.text()
+        MeasureDeviceConnect.ldc.set_current_limit_in_amper(float(self.LD_CURRENT_LIMIT)/1000.0)
+        self.LD_CURRENT_LIMIT = str(MeasureDeviceConnect.ldc.get_current_limit_in_amper()*1000)
+        self.label_with_ld_current_limit.setText("LD current limit: " + str(self.LD_CURRENT_LIMIT) + " mA")
+
     def set_start_current(self):
         self.START_CURRENT = self.line_to_enter_start_current.text()
         self.OUT_MSG = self.OUT_MSG + "\nstart current set to " + str(self.START_CURRENT) + " mA"
@@ -181,11 +220,6 @@ class App(QMainWindow, MeasureDeviceConnect):
         self.POINTS_TO_MEASURE = self.line_to_enter_points_to_measure.text()
         self.OUT_MSG = self.OUT_MSG + "\nnumbers of points to measure set to " + self.POINTS_TO_MEASURE
         self.label_info.setPlainText(self.OUT_MSG)
-
-    def save_data(self):
-        file_name_to_save = QFileDialog.getSaveFileName(self, 'Open file',
-                                                        '', "Image files (*.txt )")
-        shutil.copy("/home/pawel1/Pulpit/PyLabDevice/MeasureGui/data.txt", str(file_name_to_save[0]))
 
 
 class PlotCanvas(FigureCanvas, BaseMeasureInfo):
