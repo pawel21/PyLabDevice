@@ -21,8 +21,8 @@ class LDC4005:
     def off(self):
         self.device.write("OUTPut OFF")
 
-    def ld_current_in_A_setpoint(self, level):
-        self.device.write("SOURce:CURRent:LEVel:AMPLitude " + str(level))
+    def set_ld_current_in_amper(self, value):
+        self.device.write("SOURce:CURRent:LEVel:AMPLitude %s" % value)
 
     def ld_current_reading(self):
         self.device.write("INITiate")
@@ -38,6 +38,14 @@ class LDC4005:
         value = self.device.read(100)
         return float(value)
 
+    def get_current_limit_in_amper(self):
+        self.device.write("SOURce:CURRent:LIMit:AMPLitude?")
+        value = self.device.read(100)
+        return float(value)
+
+    def set_current_limit_in_amper(self, value):
+        self.device.write("SOURce:CURRent:LIMit:AMPLitude %s" % value)
+
     def query_shape(self):
         self.device.write("SOURce:FUNCtion:SHAPe?")
         shape = self.device.read(100)
@@ -49,7 +57,7 @@ class LDC4005:
     def set_shape_pulse(self):
         self.device.write("SOURce:FUNCtion:SHAPe PULSe")
 
-    def query_period(self):
+    def get_period(self):
         self.device.write("SOURce:PULSe:PERiod?")
         period = self.device.read(100)
         return float(period)
