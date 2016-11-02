@@ -11,7 +11,7 @@ from Device import Device
 ldc = Device().get_ldc4005_instance()
 pm100 = Device().get_pm100_instance()
 
-ldc.ld_current_in_A_setpoint(0.015)
+ldc.set_ld_current_in_amper(0.015)
 ldc.on()
 time.sleep(2)
 

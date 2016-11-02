@@ -13,7 +13,7 @@ from PM100 import PM100
 def measuare():
     ldc = LDC4005("/dev/usbtmc0")
     pm100 = PM100("/dev/usbtmc1")
-    ldc.ld_current_in_A_setpoint(0)
+    ldc.set_ld_current_in_amper(0)
     time.sleep(1)
     ldc.on()
     time.sleep(3)
@@ -24,7 +24,7 @@ def measuare():
     set_current_array = np.linspace(0, 0.020, 550)
 
     for i in range(0, len(set_current_array)):
-        ldc.ld_current_in_A_setpoint(str(set_current_array[i]))
+        ldc.set_ld_current_in_amper(str(set_current_array[i]))
         current.append(ldc.ld_current_reading())
         voltage.append(ldc.ld_voltage_reading())
         power.append(pm100.get_power())

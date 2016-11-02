@@ -44,7 +44,7 @@ class LDC4005:
         return float(value)
 
     def set_current_limit_in_amper(self, value):
-        self.device.write("SOURce:CURRent:LIMit:AMPLitude %s" % value)
+        self.device.write("SOURce:CURRent:LIMit:AMPLitude %s" % str(value))
 
     def query_shape(self):
         self.device.write("SOURce:FUNCtion:SHAPe?")

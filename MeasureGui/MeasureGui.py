@@ -1,50 +1,25 @@
 import sys
 sys.path.insert(0, "/home/pawel1/Pulpit/PyLabDevice/Device")
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMenu, QVBoxLayout, QSizePolicy, QMessageBox, QWidget, \
-    QPushButton, QLineEdit, QLabel, QPlainTextEdit, QAction, QFileDialog
+    QPushButton, QLineEdit, QLabel, QPlainTextEdit, QAction, QFileDialog, QLCDNumber, QSlider, QDialog
+from PyQt5.QtCore import Qt, QObject, pyqtSlot
 import matplotlib
-matplotlib.use('WXAgg')
+matplotlib.use('tkAgg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import logging
 import numpy as np
 import shutil
 import time
 import thread
 import os
 
-from Device import Device
 
-
-class BaseMeasureInfo:
-    _DEFAULT_FMT = "%(asctime)s - %(levelname)s - %(message)s"
-    logger = logging.getLogger(__name__)
-    OUT_MSG = ""
-    WAVELENGTH = ""
-    LD_CURRENT_LIMIT = ""
-
-    def __init__(self):
-        logging.basicConfig(
-            level=logging.DEBUG,
-            stream=sys.stdout,
-            format=self._DEFAULT_FMT)
-
-
-class MeasureDeviceConnect(BaseMeasureInfo):
-
-    try:
-        dev = Device()
-        ldc = dev.get_ldc4005_instance()
-        pm100 = dev.get_pm100_instance()
-        BaseMeasureInfo.OUT_MSG += "Connections with device successful"
-        BaseMeasureInfo.WAVELENGTH = str(pm100.get_current_wavelength_in_nm())
-        BaseMeasureInfo.LD_CURRENT_LIMIT = str(ldc.get_current_limit_in_amper()*1000)
-    except Exception as err:
-        BaseMeasureInfo.logger.error(err)
-        BaseMeasureInfo.OUT_MSG += ("Error %s" % err)
+from LdcSettingsWindow import LdcSettingsWindow
+from BaseMeasureInfo import BaseMeasureInfo
+from MeasureDeviceConnect import MeasureDeviceConnect
 
 
 class Measure:
@@ -102,6 +77,13 @@ class App(QMainWindow, MeasureDeviceConnect):
         self.matplotlib_toolbar.move(300, 0)
         self.matplotlib_toolbar.resize(500, 50)
 
+        self.open_ldc_settings_window = QPushButton(self)
+        self.open_ldc_settings_window.setText("Ldc settings")
+        self.open_ldc_settings_window.move(1150, 750)
+        self.open_ldc_settings_window.resize(120, 80)
+        self.open_ldc_settings_window.clicked.connect(self.click_to_open_ldc_settings_window)
+        self.ldc_settings_window = LdcSettingsWindow(self)
+
         button_to_start_measure = QPushButton('Start', self)
         button_to_start_measure.move(1020, 10)
         button_to_start_measure.resize(140, 50)
@@ -127,17 +109,6 @@ class App(QMainWindow, MeasureDeviceConnect):
         self.line_to_set_wavelength = QLineEdit(self)
         self.line_to_set_wavelength.setText(str(self.WAVELENGTH))
         self.line_to_set_wavelength.move(1180, 250)
-
-        self.label_with_ld_current_limit = QLabel('LD current limit: ' + str(self.LD_CURRENT_LIMIT) + " mA", self)
-        self.label_with_ld_current_limit.move(1020, 280)
-        self.label_with_ld_current_limit.resize(200, 80)
-        button_to_set_ld_current_limit = QPushButton('Set LD current limit', self)
-        button_to_set_ld_current_limit.move(1020, 350)
-        button_to_set_ld_current_limit.resize(150, 30)
-        button_to_set_ld_current_limit.clicked.connect(self.set_ld_current_limit)
-        self.line_to_set_ld_current_limit = QLineEdit(self)
-        self.line_to_set_ld_current_limit.setText(str(self.LD_CURRENT_LIMIT))
-        self.line_to_set_ld_current_limit.move(1180, 350)
 
         button_to_set_start_current = QPushButton('Set start current [mA]', self)
         button_to_set_start_current.move(30, 650)
@@ -172,6 +143,10 @@ class App(QMainWindow, MeasureDeviceConnect):
         self.label_info.setPlainText(self.OUT_MSG)
         self.show()
 
+    @pyqtSlot()
+    def click_to_open_ldc_settings_window(self):
+        self.ldc_settings_window.exec_()
+
     def click_to_start_measure(self):
         try:
             thread.start_new_thread(Measure.do_measure, (float(self.START_CURRENT)*1e-3, float(self.STOP_CURRENT)*1e-3,
@@ -199,12 +174,6 @@ class App(QMainWindow, MeasureDeviceConnect):
         MeasureDeviceConnect.pm100.set_wavelength_in_nm(self.WAVELENGTH)
         self.WAVELENGTH = MeasureDeviceConnect.pm100.get_current_wavelength_in_nm()
         self.label_with_current_wavelength.setText("Current wavelength: " + str(self.WAVELENGTH) + " nm")
-
-    def set_ld_current_limit(self):
-        self.LD_CURRENT_LIMIT = self.line_to_set_ld_current_limit.text()
-        MeasureDeviceConnect.ldc.set_current_limit_in_amper(float(self.LD_CURRENT_LIMIT)/1000.0)
-        self.LD_CURRENT_LIMIT = str(MeasureDeviceConnect.ldc.get_current_limit_in_amper()*1000)
-        self.label_with_ld_current_limit.setText("LD current limit: " + str(self.LD_CURRENT_LIMIT) + " mA")
 
     def set_start_current(self):
         self.START_CURRENT = self.line_to_enter_start_current.text()
