@@ -7,6 +7,7 @@ class BaseMeasureInfo:
     logger = logging.getLogger(__name__)
     OUT_MSG = ""
     WAVELENGTH = ""
+    TIMEOUT_SECONDS_MEASURE = 0
 
     def __init__(self):
         logging.basicConfig(

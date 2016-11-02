@@ -3,6 +3,7 @@ sys.path.insert(0, "/home/pawel1/Pulpit/PyLabDevice/Device")
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMenu, QVBoxLayout, QSizePolicy, QMessageBox, QWidget, \
     QPushButton, QLineEdit, QLabel, QPlainTextEdit, QAction, QFileDialog, QLCDNumber, QSlider, QDialog
 from PyQt5.QtCore import Qt, QObject, pyqtSlot
+from PyQt5.QtGui import QTextCursor
 import matplotlib
 matplotlib.use('tkAgg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -25,7 +26,7 @@ from MeasureDeviceConnect import MeasureDeviceConnect
 class Measure:
 
     @staticmethod
-    def do_measure(start_current, stop_current, numbers_of_points):
+    def do_measure(start_current, stop_current, numbers_of_points, timeout):
         try:
             MeasureDeviceConnect.ldc.set_ld_current_in_amper(0)
             time.sleep(1)
@@ -39,6 +40,7 @@ class Measure:
 
             for i in range(0, len(set_current_array)):
                 MeasureDeviceConnect.ldc.set_ld_current_in_amper(str(set_current_array[i]))
+                time.sleep(timeout)
                 current.append(MeasureDeviceConnect.ldc.ld_current_reading())
                 voltage.append(MeasureDeviceConnect.ldc.ld_voltage_reading())
                 power.append(MeasureDeviceConnect.pm100.get_power())
@@ -46,7 +48,7 @@ class Measure:
                 V = np.array(voltage, dtype=float)
                 L = np.array(power, dtype=float)
                 np.savetxt('data.txt', zip(J, V, L), fmt='%1.12e', header=' J [A] \t V \t L [w] ')
-                time.sleep(0.1)
+
         except Exception as err:
                 print(err)
         finally:
@@ -135,12 +137,23 @@ class App(QMainWindow, MeasureDeviceConnect):
         self.line_to_enter_points_to_measure.setText("0")
         self.line_to_enter_points_to_measure.move(600, 650)
 
+        button_to_set_timeout_measure = QPushButton('Set timeout in seconds', self)
+        button_to_set_timeout_measure.move(350, 700)
+        button_to_set_timeout_measure.resize(220, 30)
+        button_to_set_timeout_measure.clicked.connect(self.set_timeout)
+        self.TIMEOUT_SECONDS_MEASURE = 0
+        self.line_to_enter_timeout = QLineEdit(self)
+        self.line_to_enter_timeout.setText("0")
+        self.line_to_enter_timeout.move(600, 700)
+
         self.label_info = QPlainTextEdit(self)
         self.label_info.setReadOnly(True)
         self.label_info.move(100, 750)
         self.label_info.resize(500, 100)
         self.OUT_MSG += "\nPlease set parameters to measure"
         self.label_info.setPlainText(self.OUT_MSG)
+        self.label_info.moveCursor(QTextCursor.End)
+        self.label_info.ensureCursorVisible()
         self.show()
 
     @pyqtSlot()
@@ -149,8 +162,10 @@ class App(QMainWindow, MeasureDeviceConnect):
 
     def click_to_start_measure(self):
         try:
-            thread.start_new_thread(Measure.do_measure, (float(self.START_CURRENT)*1e-3, float(self.STOP_CURRENT)*1e-3,
-                                                         float(self.POINTS_TO_MEASURE), ))
+            thread.start_new_thread(Measure.do_measure, (float(self.START_CURRENT)*1e-3,
+                                                         float(self.STOP_CURRENT)*1e-3,
+                                                         float(self.POINTS_TO_MEASURE),
+                                                         float(self.TIMEOUT_SECONDS_MEASURE), ))
             self.OUT_MSG += "\nstart new measure"
             self.label_info.setPlainText(self.OUT_MSG)
         except Exception as err:
@@ -188,6 +203,11 @@ class App(QMainWindow, MeasureDeviceConnect):
     def set_points_to_measure(self):
         self.POINTS_TO_MEASURE = self.line_to_enter_points_to_measure.text()
         self.OUT_MSG = self.OUT_MSG + "\nnumbers of points to measure set to " + self.POINTS_TO_MEASURE
+        self.label_info.setPlainText(self.OUT_MSG)
+
+    def set_timeout(self):
+        self.TIMEOUT_SECONDS_MEASURE = self.line_to_enter_timeout.text()
+        self.OUT_MSG = self.OUT_MSG + "\ntimeout set to " + self.TIMEOUT_SECONDS_MEASURE + " s"
         self.label_info.setPlainText(self.OUT_MSG)
 
 
