@@ -12,6 +12,7 @@ class Device:
     _PATH_TO_DEV_DIR="/dev"
     map_device = {}
     available_port = ["/dev/usbtmc0", "/dev/usbtmc1"]
+
     def available_device(self):
         list_of_path_usb_device = self._create_list_of_usb_device()
         for path_usb_device in list_of_path_usb_device:

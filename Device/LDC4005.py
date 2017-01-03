@@ -62,5 +62,5 @@ class LDC4005:
         period = self.device.read(100)
         return float(period)
 
-    def set_period_in_seconds(self, level):  #
+    def set_period_in_seconds(self, level):
         self.device.write("SOURce:PULSe:PERiod " + str(level))

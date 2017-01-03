@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QMenu, QVBoxLayout, QSize
     QPushButton, QLineEdit, QLabel, QPlainTextEdit, QAction, QFileDialog, QLCDNumber, QSlider, QDialog
 from PyQt5.QtCore import Qt, QObject, pyqtSlot
 from PyQt5.QtGui import QTextCursor
+import datetime
 import matplotlib
 matplotlib.use('tkAgg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -14,7 +15,7 @@ import matplotlib.animation as animation
 import numpy as np
 import shutil
 import time
-import thread
+import threading
 import os
 
 
@@ -23,7 +24,7 @@ from BaseMeasureInfo import BaseMeasureInfo
 from MeasureDeviceConnect import MeasureDeviceConnect
 
 
-class Measure:
+class Measure(BaseMeasureInfo):
 
     @staticmethod
     def do_measure(start_current, stop_current, numbers_of_points, timeout):
@@ -41,13 +42,14 @@ class Measure:
             for i in range(0, len(set_current_array)):
                 MeasureDeviceConnect.ldc.set_ld_current_in_amper(str(set_current_array[i]))
                 time.sleep(timeout)
-                current.append(MeasureDeviceConnect.ldc.ld_current_reading())
-                voltage.append(MeasureDeviceConnect.ldc.ld_voltage_reading())
-                power.append(MeasureDeviceConnect.pm100.get_power())
-                J = np.array(current, dtype=float)
-                V = np.array(voltage, dtype=float)
-                L = np.array(power, dtype=float)
-                np.savetxt('data.txt', zip(J, V, L), fmt='%1.12e', header=' J [A] \t V \t L [w] ')
+                if MeasureDeviceConnect.ldc.ld_current_reading() > 0:
+                    current.append(MeasureDeviceConnect.ldc.ld_current_reading())
+                    voltage.append(MeasureDeviceConnect.ldc.ld_voltage_reading())
+                    power.append(MeasureDeviceConnect.pm100.get_power())
+                    J = np.array(current, dtype=float)
+                    V = np.array(voltage, dtype=float)
+                    L = np.array(power, dtype=float)
+                    np.savetxt('data.txt', zip(J, V, L), fmt='%1.12e', header=' J [A] \t V \t L [w] ')
 
         except Exception as err:
                 print(err)
@@ -87,16 +89,19 @@ class App(QMainWindow, MeasureDeviceConnect):
         self.ldc_settings_window = LdcSettingsWindow(self)
 
         button_to_start_measure = QPushButton('Start', self)
+        button_to_start_measure.setStyleSheet('QPushButton {background-color: #A3C1DA; color: red;}')
         button_to_start_measure.move(1020, 10)
         button_to_start_measure.resize(140, 50)
         button_to_start_measure.clicked.connect(self.click_to_start_measure)
 
         button_to_stop_measure = QPushButton('Stop', self)
+        button_to_stop_measure.setStyleSheet('QPushButton {background-color: #A3C1DA; color: red;}')
         button_to_stop_measure.move(1180, 10)
         button_to_stop_measure.resize(140, 50)
         button_to_stop_measure.clicked.connect(self.click_to_stop_measure)
 
         buton_to_save_data = QPushButton("Save data", self)
+        buton_to_save_data.setStyleSheet('QPushButton {background-color: #A3C1DA; color: red;}')
         buton_to_save_data.clicked.connect(self.save_data)
         buton_to_save_data.move(1020, 100)
         buton_to_save_data.resize(140, 50)
@@ -107,6 +112,7 @@ class App(QMainWindow, MeasureDeviceConnect):
         button_to_set_wavelength = QPushButton('Set wavelength [nm]', self)
         button_to_set_wavelength.move(1020, 250)
         button_to_set_wavelength.resize(150, 30)
+        button_to_set_wavelength.setStyleSheet('QPushButton {background-color: #6dad49; color: red;}')
         button_to_set_wavelength.clicked.connect(self.set_wavelength)
         self.line_to_set_wavelength = QLineEdit(self)
         self.line_to_set_wavelength.setText(str(self.WAVELENGTH))
@@ -128,7 +134,7 @@ class App(QMainWindow, MeasureDeviceConnect):
         self.line_to_enter_stop_current.setText("0")
         self.line_to_enter_stop_current.move(200, 700)
 
-        button_to_set_numer_of_points_to_measure = QPushButton('Set numbers of points to measure', self)
+        button_to_set_numer_of_points_to_measure = QPushButton('Set points to measure', self)
         button_to_set_numer_of_points_to_measure.move(350, 650)
         button_to_set_numer_of_points_to_measure.resize(220, 30)
         button_to_set_numer_of_points_to_measure.clicked.connect(self.set_points_to_measure)
@@ -162,16 +168,20 @@ class App(QMainWindow, MeasureDeviceConnect):
 
     def click_to_start_measure(self):
         try:
-            thread.start_new_thread(Measure.do_measure, (float(self.START_CURRENT)*1e-3,
-                                                         float(self.STOP_CURRENT)*1e-3,
-                                                         float(self.POINTS_TO_MEASURE),
-                                                         float(self.TIMEOUT_SECONDS_MEASURE), ))
-            self.OUT_MSG += "\nstart new measure"
+            measure_instance = Measure()
+            measure_thread = threading.Thread(target=measure_instance.do_measure, args=(float(self.START_CURRENT)*1e-3,
+                                                          float(self.STOP_CURRENT)*1e-3,
+                                                          float(self.POINTS_TO_MEASURE),
+                                                          float(self.TIMEOUT_SECONDS_MEASURE), ))
+            measure_thread.start()
+            data_now = datetime.datetime.now()
+            self.OUT_MSG += "\n"
+            self.OUT_MSG += data_now.strftime("%Y-%m-%d %H:%M:%S")
+            self.OUT_MSG += "  Start new measure"
             self.label_info.setPlainText(self.OUT_MSG)
         except Exception as err:
             print(err)
             print("Error, unable to start thread")
-
         time.sleep(4)
         self.plot_canvas.real_time_plot()
 
@@ -234,11 +244,11 @@ class PlotCanvas(FigureCanvas, BaseMeasureInfo):
                 current, voltage, power = np.loadtxt("data.txt", unpack=True, skiprows=1)
                 ax1.clear()
                 ax2.clear()
-                ax1.plot(current, power, 'ro')
-                ax2.plot(current, voltage, 'bo')
-                ax1.set_xlabel("J [A]")
-                ax1.set_ylabel('L [W]', color='r')
-                ax2.set_ylabel('U [V]', color='b')
+                ax1.plot(current*1000, power*1000, 'ro')
+                ax2.plot(current*1000, voltage, 'bo')
+                ax1.set_xlabel("current [mA]")
+                ax1.set_ylabel('Power [mW]', color='r')
+                ax2.set_ylabel('Voltage [V]', color='b')
                 plt.grid(True)
             except Exception as msg_error:
                 self.OUT_MSG = self.OUT_MSG + "\n" + str(msg_error)

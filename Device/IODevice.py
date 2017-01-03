@@ -1,6 +1,7 @@
 import os
 import signal
 
+
 class BadDeviceException(Exception):
     pass
 
