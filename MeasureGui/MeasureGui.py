@@ -32,6 +32,7 @@ class Measure(BaseMeasureInfo):
             MeasureDeviceConnect.ldc.set_ld_current_in_amper(0)
             time.sleep(1)
             MeasureDeviceConnect.ldc.on()
+            wavelength = MeasureDeviceConnect.pm100.get_current_wavelength_in_nm()
             time.sleep(3)
 
             current = list()
@@ -49,8 +50,14 @@ class Measure(BaseMeasureInfo):
                     J = np.array(current, dtype=float)
                     V = np.array(voltage, dtype=float)
                     L = np.array(power, dtype=float)
-                    np.savetxt('data.txt', zip(J, V, L), fmt='%1.12e', header=' J [A] \t V \t L [w] ')
 
+                    np.savetxt('data.txt', zip(J, V, L), fmt='%1.12e', header=' J [A] \t V \t L [w] ')
+            now = datetime.datetime.now()
+            info = "current [A] \t voltage [V] \t power [W] \t wavelenght:"
+            info += str(wavelength)
+            info += " nm"
+            info += now.strftime("\t %Y-%m-%d %H:%M")
+            np.savetxt('data.txt', zip(J, V, L), fmt='%1.12e', header=info)
         except Exception as err:
                 print(err)
         finally:
